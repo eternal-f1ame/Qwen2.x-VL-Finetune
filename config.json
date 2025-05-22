@@ -1,0 +1,11 @@
+{
+  "temperature": 0.1,
+  "top_p": 0.001,
+  "top_k": null,
+  "max_new_tokens": 500,
+  "repetition_penalty": 1.2,
+  "model_name": "Qwen/Qwen2.5-VL-7B-Instruct",
+  "processor_name": "Qwen/Qwen2.5-VL-7B-Instruct",
+  "prompt": "Detect and return the bbox coordinates of the {} in image in COCO format if any.",
+  "batch_size": 1
+} 
