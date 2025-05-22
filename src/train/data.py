@@ -177,8 +177,9 @@ class SupervisedDataset(Dataset):
             pixel_key = None
             images=None
             videos=None
-
-        sources = copy.deepcopy(llava_to_openai(sources['conversations'], is_video=is_video))
+        sources_ = llava_to_openai(sources['conversations'], is_video=is_video)
+        print(f"Sources:\n\n\n {sources_}\n\n\n")
+        sources = copy.deepcopy(sources_)
 
         all_input_ids = [] 
         all_labels = []
@@ -197,10 +198,21 @@ class SupervisedDataset(Dataset):
 
         for _, j in enumerate(range(0, len(sources), 2)):
             user_input = sources[j]
-            gpt_response = sources[j + 1]
+            xyz = processor.apply_chat_template([user_input], tokenize=True, add_generation_prompt=True)
+            gt_response = sources[j + 1]
 
-            user_input = f"{DEFAULT_IM_START_TOKEN}{user_input['role']}\n{user_input['content']}{DEFAULT_IM_END_TOKEN}\n{DEFAULT_IM_START_TOKEN}{gpt_response['role']}\n"
-            gpt_response = f"{gpt_response['content']}{DEFAULT_IM_END_TOKEN}\n"
+            user_input = f"{DEFAULT_IM_START_TOKEN}{user_input['role']}\n{user_input['content']}{DEFAULT_IM_END_TOKEN}\n{DEFAULT_IM_START_TOKEN}{gt_response['role']}\n"
+            gt_response = f"{gt_response['content']}{DEFAULT_IM_END_TOKEN}\n"
+            
+            gencfg = transformers.GenerationConfig(
+                temperature=0.1,
+                top_p=0.001,
+                repetition_penalty=1.2,
+                max_tokens=500,
+                stop_token_ids=[]
+            )
+
+            
             
             if DEFAULT_IMAGE_TOKEN in user_input:
                 inputs = processor(text=[user_input], images=images, videos=videos, padding=False, do_resize=False, return_tensors='pt')
@@ -221,7 +233,7 @@ class SupervisedDataset(Dataset):
             else:
                 prompt_input_ids = processor.tokenizer(user_input, add_special_tokens=False, padding=False, return_tensors='pt')['input_ids']
 
-            response_input_ids = processor.tokenizer(gpt_response, add_special_tokens=False, padding=False, return_tensors='pt')['input_ids']
+            response_input_ids = processor.tokenizer(gt_response, add_special_tokens=False, padding=False, return_tensors='pt')['input_ids']
 
             input_ids = torch.cat([prompt_input_ids, response_input_ids], dim=1).squeeze(0)
             labels = torch.cat(
@@ -250,6 +262,9 @@ class SupervisedDataset(Dataset):
             attention_mask=attention_mask,
             labels=labels,
         )
+        
+        print(f"\n\n\nData dict: {data_dict}\n\n\n")
+        print(f"\n\n\nxyz: {xyz}\n\n\n")
 
         if pixel_key and grid_key:
             pixel_values = torch.cat(all_pixel_values, dim=0)
