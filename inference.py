@@ -42,7 +42,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Load model and processor
-    processor = Qwen2_5_VLProcessor.from_pretrained(config_params['processor_name'], trust_remote_code=True, use_fast=True)
+    processor = Qwen2_5_VLProcessor.from_pretrained(config_params['model_name'], trust_remote_code=True, use_fast=True)
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         config_params['model_name'],
         torch_dtype=torch.float16,
@@ -86,79 +86,78 @@ def main():
             continue
         
         detections_for_image = {"image_path": image_filename, "detections": []}
+        log_file_path = os.path.join(log_dir, f"{image_filename[:-3]}txt")
+        with open(log_file_path, 'a', encoding='utf-8') as f_log:
+            for class_key, color in classes_for_detection.items():
+                prompt_text = config_params['prompt'].format(class_key) # Use prompt from config
+                
+                messages = [
+                    {
+                        'role': 'system',
+                        'content': [
+                            {"type": "text", 
+                            "text": "You are an adept Factory Indoors Leaks, Spills and Object Detection model. Strictly Avoid False Positives."}
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image", "image": image_path, "min_pixels": 224 * 224, "max_pixels": 2048 * 2048},
+                            {"type": "text",  "text": prompt_text}
+                        ]
+                    }
+                ]
 
-        for class_key, color in classes_for_detection.items():
-            prompt_text = config_params['prompt'].format(class_key) # Use prompt from config
-            
-            messages = [
-                {
-                    'role': 'system',
-                    'content': [
-                        {"type": "text", 
-                         "text": "You are an adept Factory Indoors Leaks, Spills and Object Detection model. Strictly Avoid False Positives."}
-                    ]
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "image": image_path, "min_pixels": 224 * 224, "max_pixels": 2048 * 2048},
-                        {"type": "text",  "text": prompt_text}
-                    ]
-                }
-            ]
+                # Prepare inputs for the model
+                try:
+                    text_prompt_for_tokenizer = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    image_inputs, _ = process_vision_info(messages)
+                    llm_inputs = processor(
+                        text=[text_prompt_for_tokenizer],
+                        images=image_inputs,
+                        padding=True,
+                        return_tensors="pt",
+                    ).to(model.device) # Ensure inputs are on the same device as the model
+                except Exception as e:
+                    print(f"Error processing inputs for {image_filename} with class {class_key}: {e}")
+                    continue
 
-            # Prepare inputs for the model
-            try:
-                text_prompt_for_tokenizer = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-                image_inputs, _ = process_vision_info(messages)
-                llm_inputs = processor(
-                    text=[text_prompt_for_tokenizer],
-                    images=image_inputs,
-                    padding=True,
-                    return_tensors="pt",
-                ).to(model.device) # Ensure inputs are on the same device as the model
-            except Exception as e:
-                print(f"Error processing inputs for {image_filename} with class {class_key}: {e}")
-                continue
+                # Generate
+                with torch.no_grad():
+                    generated_ids = model.generate(**llm_inputs, generation_config=gencfg)
+                
+                generated_ids_trimmed = generated_ids[:, llm_inputs.input_ids.shape[1]:] # Trim input tokens
+                generated_text = processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
 
-            # Generate
-            with torch.no_grad():
-                generated_ids = model.generate(**llm_inputs, generation_config=gencfg)
-            
-            generated_ids_trimmed = generated_ids[:, llm_inputs.input_ids.shape[1]:] # Trim input tokens
-            generated_text = processor.batch_decode(generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
 
-            log_file_path = os.path.join(log_dir, f"log_{image_filename.split('.')[0]}_{class_key}_{now.strftime('%Y%m%d_%H%M%S')}.txt")
-            with open(log_file_path, 'w', encoding='utf-8') as f_log:
-                f_log.write(f"Image: {image_filename}, Class: {class_key}\n")
                 f_log.write(f"Prompt:\n{prompt_text}\n")
                 f_log.write(f"Generated Text (raw):\n{generated_text}\n")
 
-            try:
-                parsed_detections = json.loads(generated_text.strip().replace('```json', '').replace('```', ''))
-                if isinstance(parsed_detections, list):
-                    for det in parsed_detections:
-                        if isinstance(det, dict) and "bbox_2d" in det and "label" in det:
-                            x1, y1, x2, y2 = map(int, det["bbox_2d"])
-                            label = det["label"]
-                            if x1 < 0 or y1 < 0 or x2 < 0 or y2 < 0 or x1 >= x2 or y1 >= y2: # Basic validation
-                                print(f"Skipping invalid bbox for {label} in {image_filename}: {[x1,y1,x2,y2]}")
-                                continue
-                            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
-                            text_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
-                            cv2.rectangle(image, (x1, y1 - text_size[1] - 10), (x1 + text_size[0], y1), color, -1)
-                            cv2.putText(image, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                            detections_for_image["detections"].append(det)
-                        else:
-                            print(f"Warning: Detection item has unexpected format: {det} for {image_filename}")
-                else:
-                     print(f"Warning: Parsed detection is not a list: {parsed_detections} for {image_filename}")
+                try:
+                    parsed_detections = json.loads(generated_text.strip().replace('```json', '').replace('```', ''))
+                    if isinstance(parsed_detections, list):
+                        for det in parsed_detections:
+                            if isinstance(det, dict) and "bbox_2d" in det and "label" in det:
+                                x1, y1, x2, y2 = map(int, det["bbox_2d"])
+                                label = det["label"]
+                                if x1 < 0 or y1 < 0 or x2 < 0 or y2 < 0 or x1 >= x2 or y1 >= y2: # Basic validation
+                                    print(f"Skipping invalid bbox for {label} in {image_filename}: {[x1,y1,x2,y2]}")
+                                    continue
+                                cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+                                text_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                                cv2.rectangle(image, (x1, y1 - text_size[1] - 10), (x1 + text_size[0], y1), color, -1)
+                                cv2.putText(image, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                                detections_for_image["detections"].append(det)
+                            else:
+                                print(f"Warning: Detection item has unexpected format: {det} for {image_filename}")
+                    else:
+                        print(f"Warning: Parsed detection is not a list: {parsed_detections} for {image_filename}")
 
-            except json.JSONDecodeError:
-                print(f"Error decoding JSON for {image_filename}, class {class_key}: {generated_text}")
-            except Exception as e:
-                print(f"Error drawing boxes or processing detections for {image_filename}, class {class_key}: {e}")
-        
+                except json.JSONDecodeError:
+                    print(f"Error decoding JSON for {image_filename}, class {class_key}: {generated_text}")
+                except Exception as e:
+                    print(f"Error drawing boxes or processing detections for {image_filename}, class {class_key}: {e}")
+            
         output_image_path = os.path.join(output_images_dir, image_filename)
         cv2.imwrite(output_image_path, image)
         output_json_data.append(detections_for_image)

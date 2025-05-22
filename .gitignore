@@ -166,5 +166,5 @@ tf-logs
 tmp/
 scripts_tmp/
 logs/*.log
-
+/data
 testing.ipynb

@@ -3,14 +3,14 @@
 # You can use 2B instead of 7B
 # MODEL_NAME="Qwen/Qwen2-VL-7B-Instruct"
 # MODEL_NAME="Qwen/Qwen2-VL-2B-Instruct"
-# MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
-MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
+MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
+# MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
 
 export PYTHONPATH=src:$PYTHONPATH
 
 GLOBAL_BATCH_SIZE=128
-BATCH_PER_DEVICE=4
-NUM_DEVICES=8
+BATCH_PER_DEVICE=16
+NUM_DEVICES=1
 GRAD_ACCUM_STEPS=$((GLOBAL_BATCH_SIZE / (BATCH_PER_DEVICE * NUM_DEVICES)))
 
 # If you want to tune the `embed_token` with LoRA, You need to tune `lm_head` together
@@ -26,8 +26,8 @@ deepspeed src/train/train_sft.py \
     --num_lora_modules -1 \
     --deepspeed scripts/zero3_offload.json \
     --model_id $MODEL_NAME \
-    --data_path training_data.json \
-    --image_folder "/home/aeternum/SE/OVD/Spill Dataset/train/images/" \
+    --data_path data/llava_openai.json \
+    --image_folder "/home/aeternum/SE/OVD/spill_dataset/train/images/" \
     --remove_unused_columns False \
     --freeze_vision_tower False \
     --freeze_llm True \
@@ -35,7 +35,7 @@ deepspeed src/train/train_sft.py \
     --bf16 True \
     --fp16 False \
     --disable_flash_attn2 False \
-    --output_dir output/testing_lora \
+    --output_dir output/$MODEL_NAME/lora \
     --num_train_epochs 1 \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
