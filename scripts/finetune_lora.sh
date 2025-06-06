@@ -26,7 +26,7 @@ deepspeed src/train/train_sft.py \
     --num_lora_modules -1 \
     --deepspeed scripts/zero3_offload.json \
     --model_id $MODEL_NAME \
-    --data_path data/llava_openai.json \
+    --data_path training_data.json \
     --image_folder "/home/aeternum/SE/OVD/spill_dataset/train/images/" \
     --remove_unused_columns False \
     --freeze_vision_tower False \
