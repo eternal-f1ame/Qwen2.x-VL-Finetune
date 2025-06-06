@@ -38,7 +38,6 @@ def get_dataset_config(config_params, dataset_name=None):
 # ─── USER CONFIG ───────────────────────────────────────────────────────────────
 DEFAULT_CLASSES = [
     "chemical-spill(s)",
-    "chemical-leak(s)",
     "liquid-spill(s)",
     "oil-spill(s)",
     "oil-stain(s)",
@@ -49,7 +48,6 @@ DEFAULT_CLASSES = [
 SE_SPILL_PLURALISTIC_CLASSES = [
     "outdoor-water",           # Class 0 - single prompt (no pluralistic)
     "chemical-spill(s)",       # Class 1 - pluralistic prompts for spill-leak-stain
-    "chemical-leak(s)",        # Class 1
     "liquid-spill(s)",         # Class 1  
     "liquid-stain(s)",         # Class 1
     "oil-spill(s)",           # Class 1
@@ -689,27 +687,24 @@ def main(args):
             validation_entries = entries[:val_size]
             entries = entries[val_size:]  # Remove validation examples from training set
         
-        # Generate validation output filename
-        if args.output.endswith('.json'):
-            val_output = args.output[:-5] + '_val.json'
-        else:
-            val_output = args.output + '_val.json'
         
         # Write validation set
-        with open(val_output, 'w') as out:
+        with open(args.dataset_name + '_val.json', 'w') as out:
             json.dump(validation_entries, out, indent=2)
-        print(f"Wrote {len(validation_entries)} validation examples to {val_output}")
+        print(f"Wrote {len(validation_entries)} validation examples to {args.dataset_name + '_val.json'}")
         
-        # Write training set 
-        with open(args.output, 'w') as out:
+        # Write training set
+        # Name
+        with open(args.dataset_name + '_train.json', 'w') as out:
             json.dump(entries, out, indent=2)
-        print(f"Wrote {len(entries)} training examples to {args.output}")
+        print(f"Wrote {len(entries)} training examples to {args.dataset_name + '_train.json'}")
         
     else:
         # No validation split - write all as training
-        with open(args.output, 'w') as out:
+        
+        with open(args.dataset_name + '_val.json', 'w') as out:
             json.dump(entries, out, indent=2)
-        print(f"Wrote {len(entries)} training examples to {args.output}")
+        print(f"Wrote {len(entries)} training examples to {args.dataset_name + '_val.json'}")
     
     # Print summary
     if args.use_mixed_dataset:
@@ -761,14 +756,12 @@ if __name__ == "__main__":
                    help="Use class mapping from dataset config instead of default classes")
     p.add_argument("--use_mixed_dataset", action="store_true",
                    help="Use mixed dataset training mode (combines se_spill_dataset + spill_dataset)")
-    p.add_argument("--public_data_ratio", type=float, default=0.5,
+    p.add_argument("--public_data_ratio", type=float, default=5.0,
                    help="Scaling factor for public data relative to proprietary data size (e.g., 0.5 = add 50%%, 2.0 = add 200%% of proprietary data size as public data)")
     p.add_argument("--validation_split", type=float, default=0.15,
                    help="Fraction of data to use for validation (e.g., 0.15 = 15%% validation, 85%% training). Set to 0 to disable validation.")
     p.add_argument("--force_random_split", action="store_true",
                    help="Force random splitting of training data instead of using dedicated validation folders")
-    p.add_argument("--output",     default="_training_data.json",
-                   help="Path to write the JSON array")
     p.add_argument("--seed",       type=int, default=42,
                    help="Random seed for reproducibility")
     args = p.parse_args()

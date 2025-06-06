@@ -5,6 +5,41 @@
   "max_new_tokens": 500,
   "repetition_penalty": 1.2,
   "model_name": "Qwen/Qwen2.5-VL-7B-Instruct",
+  "processor_name": "Qwen/Qwen2.5-VL-7B-Instruct",
   "prompt": "Detect and return the bbox coordinates of the {} in image in COCO format if any.",
-  "batch_size": 1
+  "batch_size": 1,
+  "dataset_config": {
+    "dataset_name": "se_spill_dataset",
+    "base_path": "../",
+    "datasets": {
+      "spill_dataset": {
+        "train_images": "spill_dataset/train/images",
+        "train_labels": "spill_dataset/train/labels",
+        "test_images": "spill_dataset/test/images",
+        "valid_images": "spill_dataset/valid/images",
+        "valid_labels": "spill_dataset/valid/labels",
+        "classes": [
+          "Spill"
+        ],
+        "class_mapping": {
+          "0": "water-spill(s)"
+        }
+      },
+      "se_spill_dataset": {
+        "train_images": "se_spill_dataset/train/images",
+        "train_labels": "se_spill_dataset/train/labels",
+        "test_images": "se_spill_dataset/test/images",
+        "valid_images": "se_spill_dataset/valid/images",
+        "valid_labels": "se_spill_dataset/valid/labels",
+        "classes": [
+          "outdoor-water",
+          "spill-leak-stain"
+        ],
+        "class_mapping": {
+          "0": "outdoor-water",
+          "1": "spill-leak-stain"
+        }
+      }
+    }
+  }
 }
