@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# Add data path from cli
+DATA_PATH=$1
 # You can use 2B instead of 7B
 # MODEL_NAME="Qwen/Qwen2-VL-7B-Instruct"
 # MODEL_NAME="Qwen/Qwen2-VL-2B-Instruct"
@@ -26,8 +27,7 @@ deepspeed src/train/train_sft.py \
     --num_lora_modules -1 \
     --deepspeed scripts/zero3_offload.json \
     --model_id $MODEL_NAME \
-    --data_path training_data.json \
-    --image_folder "/home/aeternum/SE/OVD/spill_dataset/train/images/" \
+    --data_path $DATA_PATH.json \
     --remove_unused_columns False \
     --freeze_vision_tower False \
     --freeze_llm True \
@@ -36,7 +36,7 @@ deepspeed src/train/train_sft.py \
     --fp16 False \
     --disable_flash_attn2 False \
     --output_dir output/$MODEL_NAME/lora \
-    --num_train_epochs 1 \
+    --num_train_epochs 10 \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
     --image_min_pixels $((256 * 28 * 28)) \
